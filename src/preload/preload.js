@@ -1,1 +1,0 @@
-// Placeholder for preload script - will be implemented in Task 3
