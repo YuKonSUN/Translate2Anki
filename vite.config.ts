@@ -5,27 +5,15 @@ import { resolve } from 'path';
 export default defineConfig({
   plugins: [react()],
   base: './',
+  build: {
+    outDir: 'dist/renderer',
+    rollupOptions: {
+      input: resolve(__dirname, 'src/renderer/index.html'),
+    },
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      '@main': resolve(__dirname, 'src/main'),
-      '@renderer': resolve(__dirname, 'src/renderer'),
-      '@services': resolve(__dirname, 'src/services'),
-      '@types': resolve(__dirname, 'src/types'),
-      '@store': resolve(__dirname, 'src/store'),
     },
-  },
-  build: {
-    outDir: 'dist/renderer',
-    emptyOutDir: true,
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-      },
-    },
-  },
-  server: {
-    port: 5173,
-    strictPort: true,
   },
 });
