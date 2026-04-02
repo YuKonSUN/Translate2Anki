@@ -1,7 +1,11 @@
-import { app, BrowserWindow, globalShortcut } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron';
 import { join } from 'path';
+import { ShortcutManager } from './shortcutManager';
+import { ClipboardManager } from './clipboardManager';
 
 let mainWindow: BrowserWindow | null = null;
+const shortcutManager = new ShortcutManager();
+const clipboardManager = new ClipboardManager();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -22,6 +26,25 @@ function createWindow() {
   }
 }
 
+// IPC handler for clipboard text requests
+ipcMain.handle('get-clipboard-text', async () => {
+  return clipboardManager.readText();
+});
+
+// Global shortcut callback
+function handleTranslationShortcut() {
+  console.log('Translation shortcut pressed');
+
+  // Read text from clipboard
+  const clipboardText = clipboardManager.readText();
+  console.log('Clipboard text:', clipboardText);
+
+  // Send clipboard text to renderer if window exists
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('clipboard-text', clipboardText);
+  }
+}
+
 app.whenReady().then(() => {
   createWindow();
 
@@ -38,17 +61,18 @@ app.on('window-all-closed', () => {
   }
 });
 
-// Global shortcut registration (to be implemented in Task 2)
+// Register global shortcut for translation
 app.on('ready', () => {
-  const ret = globalShortcut.register('CommandOrControl+Shift+T', () => {
-    console.log('Translation shortcut pressed');
-    // Will trigger translation in Task 2
-  });
+  const ret = shortcutManager.register('CommandOrControl+Shift+T', handleTranslationShortcut);
+
   if (!ret) {
     console.log('Shortcut registration failed');
+  } else {
+    console.log('Translation shortcut registered: Ctrl+Shift+T (Cmd+Shift+T on Mac)');
   }
 });
 
+// Clean up shortcuts on quit
 app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
+  shortcutManager.unregisterAll();
 });
