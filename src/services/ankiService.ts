@@ -225,4 +225,59 @@ export class AnkiService {
       await this.createDeck('Translate2Anki');
     }
   }
+
+  /**
+   * 简单的文本哈希函数，生成唯一的文件名标识
+   * 使用 djb2 哈希算法变体
+   */
+  private textHash(text: string): string {
+    let hash = 5381;
+    for (let i = 0; i < text.length; i++) {
+      hash = ((hash << 5) + hash) + text.charCodeAt(i); // hash * 33 + char
+    }
+    // 返回正数的16进制表示，确保文件名合法
+    return Math.abs(hash).toString(16).substring(0, 12);
+  }
+
+  /**
+   * 从 Google TTS 获取音频数据
+   */
+  private async fetchTTS(text: string, lang: string = 'en'): Promise<ArrayBuffer> {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(text)}&tl=${lang}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`TTS request failed: ${response.status} ${response.statusText}`);
+    }
+
+    return response.arrayBuffer();
+  }
+
+  /**
+   * 生成并存储音频文件到 Anki 媒体库
+   * 返回音频文件名
+   */
+  async generateAndStoreAudio(text: string, lang: string = 'en'): Promise<string> {
+    try {
+      // 生成唯一文件名
+      const filename = `tts_${this.textHash(text)}.mp3`;
+
+      // 获取音频数据
+      const audioData = await this.fetchTTS(text, lang);
+
+      // 转换为 base64
+      const base64Data = Buffer.from(audioData).toString('base64');
+
+      // 存储到 Anki 媒体文件夹
+      await this.request('storeMediaFile', {
+        filename,
+        data: base64Data
+      });
+
+      return filename;
+    } catch (error) {
+      console.warn(`Failed to generate audio for "${text}":`, error);
+      throw error;
+    }
+  }
 }

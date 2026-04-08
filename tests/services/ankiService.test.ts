@@ -79,8 +79,80 @@ describe('AnkiService', () => {
       ok: true,
       json: () => Promise.resolve({ result: ['Default'], error: null }),
     });
-    
+
     await service.ensureTranslate2AnkiDeck();
     expect(global.fetch).toHaveBeenCalled();
+  });
+});
+
+describe('TTS functionality', () => {
+  let service: AnkiService;
+
+  beforeEach(() => {
+    service = new AnkiService({ host: 'localhost:8765', defaultDeck: 'Test' });
+    // 重置所有 mock
+    jest.clearAllMocks();
+  });
+
+  it('should generate consistent hash for same text', () => {
+    // 通过反射访问私有方法
+    const hash1 = (service as any).textHash('hello');
+    const hash2 = (service as any).textHash('hello');
+    expect(hash1).toBe(hash2);
+    expect(hash1).toMatch(/^[0-9a-f]{1,12}$/);
+  });
+
+  it('should generate different hash for different text', () => {
+    const hash1 = (service as any).textHash('hello');
+    const hash2 = (service as any).textHash('world');
+    expect(hash1).not.toBe(hash2);
+  });
+
+  it('should generate and store audio successfully', async () => {
+    // Mock TTS fetch
+    const mockAudioData = new ArrayBuffer(100);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(mockAudioData),
+    });
+
+    // Mock AnkiConnect storeMediaFile
+    const mockRequest = jest.spyOn(service as any, 'request').mockResolvedValue(null);
+
+    const filename = await service.generateAndStoreAudio('test word', 'en');
+
+    // 验证文件名格式
+    expect(filename).toMatch(/^tts_[0-9a-f]{1,12}\.mp3$/);
+
+    // 验证 TTS API 调用
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('translate.google.com/translate_tts')
+    );
+
+    // 验证 AnkiConnect 调用
+    expect(mockRequest).toHaveBeenCalledWith('storeMediaFile', {
+      filename: expect.any(String),
+      data: expect.any(String) // base64 encoded audio
+    });
+  });
+
+  it('should handle TTS API failure gracefully', async () => {
+    // Mock TTS fetch to fail
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+    });
+
+    await expect(service.generateAndStoreAudio('test word', 'en'))
+      .rejects.toThrow('TTS request failed: 500 Internal Server Error');
+  });
+
+  it('should handle network errors in TTS', async () => {
+    // Mock network error
+    global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));
+
+    await expect(service.generateAndStoreAudio('test word', 'en'))
+      .rejects.toThrow('Network error');
   });
 });
