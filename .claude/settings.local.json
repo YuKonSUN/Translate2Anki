@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npx jest:*)",
+      "Bash(winget --version)",
+      "Bash(winget install:*)",
+      "Bash(bash -c \"node --version\")",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
+      "Bash(npm --version)",
+      "Bash(npm install:*)",
+      "Bash(taskkill /f /im electron.exe)",
+      "Bash(powershell 'Get-Process | Where-Object {$_.Modules.ModuleName -like '\\\\''*electron*'\\\\''}')",
+      "Bash(npx rimraf:*)",
+      "Bash(tasklist)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(NODE_ENV=development electron .)",
+      "Bash(npx electron:*)",
+      "Bash(PORT=5175 NODE_ENV=development npx electron .)",
+      "Bash(PORT=5175 npm run dev)",
+      "Bash(find node_modules/electron -name \"*.js\" -exec grep -l \"process.versions.electron\" {} \\\\;)",
+      "Bash(PORT=5176 npm run dev)",
+      "Bash(PORT=5180 NODE_ENV=development npx electron .)",
+      "Bash(PORT=5181 npm run dev)",
+      "Bash(PORT=5181 NODE_ENV=development npx electron .)"
+    ]
+  }
+}

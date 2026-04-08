@@ -1,37 +1,37 @@
 import { AIService } from '@/services/aiService';
-import { AIConfig } from '@/types';
+import axios from 'axios';
+
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('AIService', () => {
-  let aiService: AIService;
-  const mockConfig: AIConfig = {
+  const mockConfig = {
+    provider: 'deepseek' as const,
+    baseURL: 'https://api.deepseek.com',
     apiKey: 'test-key',
     model: 'deepseek-chat',
-    baseURL: 'https://api.deepseek.com',
-    temperature: 0.7,
-    maxTokens: 1000,
   };
 
   beforeEach(() => {
-    aiService = new AIService(mockConfig);
+    jest.clearAllMocks();
   });
 
-  describe('translate', () => {
-    it('should translate text successfully', async () => {
-      // This test will fail initially because the module doesn't exist
-      // We're testing that our test setup works
-      expect(aiService).toBeInstanceOf(AIService);
-    });
-  });
+  it('translates text', async () => {
+    const service = new AIService(mockConfig);
 
-  describe('analyzeWord', () => {
-    it('should analyze a word', async () => {
-      expect(aiService).toBeInstanceOf(AIService);
+    // Mock axios response
+    mockedAxios.post.mockResolvedValue({
+      data: {
+        choices: [{ message: { content: '这是测试翻译' } }]
+      }
     });
-  });
 
-  describe('analyzeSentence', () => {
-    it('should analyze a sentence', async () => {
-      expect(aiService).toBeInstanceOf(AIService);
-    });
+    const result = await service.translate('test translation');
+    expect(result).toBe('这是测试翻译');
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      'https://api.deepseek.com/chat/completions',
+      expect.any(Object),
+      expect.any(Object)
+    );
   });
 });

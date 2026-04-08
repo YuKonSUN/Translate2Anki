@@ -1,203 +1,340 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import LoadingSpinner from './LoadingSpinner';
-import { useTranslationStore } from '@/store/translationStore';
+import { AddToAnkiButton } from './AddToAnkiButton';
+import useTranslationStore from '@/store/translationStore';
+import { AIService } from '@/services/aiService';
+import { AnkiService } from '@/services/ankiService';
+import { AIConfig, AnkiConfig, WordAnalysis } from '@/types';
 
-interface TranslationPanelProps {
-  initialText?: string;
-}
+// 播放文本语音
+const speakText = (text: string, lang: string = 'en-US') => {
+  if ('speechSynthesis' in window) {
+    // 取消之前的语音
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang;
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  }
+};
 
-const TranslationPanel: React.FC<TranslationPanelProps> = ({ initialText = '' }) => {
+const TranslationPanel: React.FC = () => {
   const {
-    originalText,
-    translationResult,
-    isLoading,
+    selectedText,
+    translation,
+    loading,
     error,
-    setOriginalText,
-    translate,
-    clearError,
-    reset,
+    setSelectedText,
+    setAIService,
+    translateText,
+    clearTranslation,
   } = useTranslationStore();
 
-  // Initialize with initialText if provided
+  const [selectedWords, setSelectedWords] = useState<string[]>([]);
+  const [ankiService, setAnkiService] = useState<AnkiService | null>(null);
+  const [apiTestResult, setApiTestResult] = useState<string | null>(null);
+  const [testingApi, setTestingApi] = useState(false);
+  const [expandedWord, setExpandedWord] = useState<WordAnalysis | null>(null);
+
   useEffect(() => {
-    if (initialText) {
-      setOriginalText(initialText);
+    // Initialize AI service
+    const aiConfig: AIConfig = {
+      provider: 'deepseek',
+      baseURL: 'https://api.deepseek.com',
+      apiKey: 'sk-36d7049130644918b872df6f454ad573',
+      model: 'deepseek-chat',
+    };
+    setAIService(new AIService(aiConfig));
+
+    // Initialize Anki service
+    const ankiConfig: AnkiConfig = {
+      host: 'localhost:8765',
+      defaultDeck: 'Default',
+    };
+    setAnkiService(new AnkiService(ankiConfig));
+  }, [setAIService]);
+
+  useEffect(() => {
+    if (window.electronAPI?.onTextSelected) {
+      window.electronAPI.onTextSelected(async (text) => {
+        if (!text.trim()) {
+          setSelectedText('⚠️ 请复制要翻译的文本（跳过命令/代码）');
+          return;
+        }
+        setSelectedText(text);
+        setExpandedWord(null);
+        setSelectedWords([]);
+        await translateText(text);
+      });
     }
-  }, [initialText, setOriginalText]);
+  }, [setSelectedText, translateText]);
 
-  // Initialize services on mount
-  useEffect(() => {
-    const { initializeServices } = useTranslationStore.getState();
-    initializeServices();
-  }, []);
-
-  const handleTranslate = async () => {
-    await translate();
+  const handleWordToggle = (word: string) => {
+    setSelectedWords(prev =>
+      prev.includes(word)
+        ? prev.filter(w => w !== word)
+        : [...prev, word]
+    );
   };
 
-  const handleAddToAnki = () => {
-    if (!translationResult) {
-      useTranslationStore.getState().clearError();
-      useTranslationStore.setState({ error: 'No translation to add to Anki' });
-      return;
-    }
-    // TODO: Implement Anki integration in Task 5
-    console.log('Adding to Anki:', { originalText, translationResult });
-    alert('Anki integration will be implemented in Task 5');
+  const handleWordClick = (word: WordAnalysis) => {
+    setExpandedWord(expandedWord?.word === word.word ? null : word);
   };
 
-  // Listen for clipboard text from main process
-  useEffect(() => {
-    const handleClipboardText = (text: string) => {
-      setOriginalText(text);
-    };
+  const handleClose = () => {
+    window.electronAPI?.hideWindow?.();
+  };
 
-    if (window.electronAPI) {
-      window.electronAPI.onClipboardText(handleClipboardText);
+  const testApiConnection = async () => {
+    setTestingApi(true);
+    setApiTestResult(null);
+    try {
+      const response = await fetch('https://api.deepseek.com/models', {
+        headers: {
+          'Authorization': 'Bearer sk-36d7049130644918b872df6f454ad573',
+        },
+      });
+      if (response.ok) {
+        setApiTestResult('✓ API 连接正常');
+      } else {
+        const errorData = await response.json();
+        setApiTestResult(`✗ API 错误: ${errorData.error?.message || response.statusText} (状态码: ${response.status})`);
+      }
+    } catch (err) {
+      setApiTestResult(`✗ 连接失败: ${err instanceof Error ? err.message : '未知错误'}`);
+    } finally {
+      setTestingApi(false);
     }
+  };
 
-    // Cleanup
-    return () => {
-      // Note: In a real app, we'd need to remove the listener
-    };
-  }, [setOriginalText]);
+  const selectAllWords = () => {
+    if (translation?.words) {
+      setSelectedWords(translation.words.map(w => w.word));
+    }
+  };
+
+  // 解析语法分析为结构化数据
+  const parseGrammar = (grammar: string): string[] => {
+    if (!grammar) return [];
+    return grammar
+      .split(/[;；。]|\n/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+  };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-4 text-gray-800">Translate2Anki</h2>
-
-      <div className="mb-4">
-        <label htmlFor="originalText" className="block text-sm font-medium text-gray-700 mb-1">
-          Original Text
-        </label>
-        <textarea
-          id="originalText"
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          rows={3}
-          value={originalText}
-          onChange={(e) => setOriginalText(e.target.value)}
-          placeholder="Enter text to translate or use Ctrl+Shift+T to paste from clipboard"
-        />
-      </div>
-
-      <div className="mb-4">
-        <label htmlFor="translatedText" className="block text-sm font-medium text-gray-700 mb-1">
-          Translated Text
-        </label>
-        <textarea
-          id="translatedText"
-          className="w-full p-3 border border-gray-300 rounded-md bg-gray-50"
-          rows={3}
-          value={translationResult?.translation || ''}
-          readOnly
-          placeholder="Translation will appear here"
-        />
-      </div>
-
-      {/* Grammar Notes */}
-      {translationResult?.grammarNotes && translationResult.grammarNotes.length > 0 && (
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Grammar Notes</h3>
-          <ul className="list-disc pl-5 space-y-1">
-            {translationResult.grammarNotes.map((note, index) => (
-              <li key={index} className="text-gray-600">{note}</li>
-            ))}
-          </ul>
+    <div className="bg-white rounded-lg shadow-2xl overflow-hidden" style={{ width: '480px', maxHeight: '80vh', overflowY: 'auto' }}>
+      {/* 头部 */}
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-3 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">📚</span>
+          <span className="text-white font-semibold">Translate2Anki</span>
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          {/* 播放原文按钮 */}
+          {selectedText && selectedText !== '⚠️ 请复制要翻译的文本（跳过命令/代码）' && (
+            <button
+              onClick={() => speakText(selectedText, 'en-US')}
+              className="p-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+              title="播放原文"
+            >
+              <span className="text-white">🔊</span>
+            </button>
+          )}
+          {/* 关闭按钮 */}
+          <button
+            onClick={handleClose}
+            className="p-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+            title="关闭"
+          >
+            <span className="text-white">✕</span>
+          </button>
+        </div>
+      </div>
 
-      {/* Word Analyses */}
-      {translationResult?.wordAnalyses && translationResult.wordAnalyses.length > 0 && (
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Word Analysis</h3>
+      <div className="p-4 space-y-4">
+        {/* 选中文本 */}
+        <div className="bg-gray-50 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm text-gray-500">📋 选中文本</span>
+            {selectedText && selectedText !== '⚠️ 请复制要翻译的文本（跳过命令/代码）' && (
+              <button
+                onClick={() => speakText(selectedText, 'en-US')}
+                className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors"
+              >
+                🔊 播放
+              </button>
+            )}
+          </div>
+          <div className="text-gray-800 font-medium leading-relaxed">
+            {selectedText || '请选中文本后按 Ctrl+Shift+T'}
+          </div>
+        </div>
+
+        {loading && <LoadingSpinner />}
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-red-700 mb-1">
+              <span>⚠️</span>
+              <span className="font-semibold text-sm">错误</span>
+            </div>
+            <p className="text-red-600 text-sm">{error}</p>
+            <button
+              onClick={testApiConnection}
+              disabled={testingApi}
+              className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 disabled:opacity-50"
+            >
+              {testingApi ? '测试中...' : '测试 API'}
+            </button>
+            {apiTestResult && (
+              <div className={`mt-1 text-xs ${apiTestResult.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
+                {apiTestResult}
+              </div>
+            )}
+          </div>
+        )}
+
+        {translation && !loading && (
           <div className="space-y-3">
-            {translationResult.wordAnalyses.map((analysis, index) => (
-              <div key={index} className="p-3 border border-gray-200 rounded-md">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-gray-800">{analysis.word}</h4>
-                  {analysis.partOfSpeech && (
-                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-                      {analysis.partOfSpeech}
-                    </span>
-                  )}
+            {/* 翻译 */}
+            <div className="bg-green-50 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm text-green-600 font-medium">🌐 翻译</span>
+                <button
+                  onClick={() => speakText(translation.translation, 'zh-CN')}
+                  className="text-xs px-2 py-0.5 bg-green-100 text-green-600 rounded hover:bg-green-200 transition-colors"
+                >
+                  🔊 播放
+                </button>
+              </div>
+              <div className="text-lg text-gray-800 font-medium">{translation.translation}</div>
+            </div>
+
+            {/* 语法分析 */}
+            {translation.grammar && (
+              <div className="bg-purple-50 rounded-lg p-3">
+                <div className="text-sm text-purple-600 font-medium mb-2">📐 语法分析</div>
+                <ul className="space-y-1">
+                  {parseGrammar(translation.grammar).map((item, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                      <span className="text-purple-400 mt-0.5">▸</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* 核心词汇 */}
+            {translation.words && translation.words.length > 0 && (
+              <div className="bg-orange-50 rounded-lg p-3">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-orange-600 font-medium">📚 核心词汇</span>
+                  <button
+                    onClick={selectAllWords}
+                    className="text-xs px-2 py-1 bg-orange-100 text-orange-600 rounded hover:bg-orange-200 transition-colors"
+                  >
+                    全选
+                  </button>
                 </div>
-                {analysis.pronunciation && (
-                  <p className="text-sm text-gray-600 mb-1">
-                    Pronunciation: {analysis.pronunciation}
-                  </p>
-                )}
-                <p className="text-gray-700 mb-2">{analysis.definition}</p>
-                {analysis.example && (
-                  <p className="text-sm text-gray-600 italic mb-2">Example: {analysis.example}</p>
-                )}
-                {analysis.synonyms && analysis.synonyms.length > 0 && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Synonyms: </span>
-                    <span className="text-sm text-gray-600">
-                      {analysis.synonyms.join(', ')}
-                    </span>
+                
+                {/* 词汇标签 */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {translation.words.map((word) => (
+                    <div key={word.word} className="flex items-center">
+                      <button
+                        onClick={() => handleWordToggle(word.word)}
+                        className={`px-2 py-1 rounded-l-md text-sm border-2 border-r-0 transition-all ${
+                          selectedWords.includes(word.word)
+                            ? 'bg-blue-500 text-white border-blue-500'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
+                        }`}
+                      >
+                        <span className="font-medium">{word.word}</span>
+                        <span className="text-xs opacity-75 ml-1">({word.partOfSpeech})</span>
+                        {selectedWords.includes(word.word) && <span className="ml-1">✓</span>}
+                      </button>
+                      <button
+                        onClick={() => handleWordClick(word)}
+                        className={`px-2 py-1 rounded-r-md border-2 transition-all ${
+                          expandedWord?.word === word.word
+                            ? 'bg-orange-200 text-orange-700 border-orange-300'
+                            : 'bg-white text-gray-400 border-gray-200 hover:bg-orange-50 hover:text-orange-600'
+                        }`}
+                        title="查看详情"
+                      >
+                        🔍
+                      </button>
+                      <button
+                        onClick={() => speakText(word.word, 'en-US')}
+                        className="ml-1 p-1 text-gray-400 hover:text-blue-500 transition-colors"
+                        title="播放发音"
+                      >
+                        🔊
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 词汇详情 */}
+                {expandedWord && (
+                  <div className="bg-white rounded-lg p-3 border border-orange-200 mb-3">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-orange-800">{expandedWord.word}</h4>
+                        <button
+                          onClick={() => speakText(expandedWord.word, 'en-US')}
+                          className="text-blue-500 hover:text-blue-600"
+                        >
+                          🔊
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => setExpandedWord(null)}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <div><span className="text-gray-500">释义：</span><span className="font-medium">{expandedWord.meaning}</span></div>
+                      <div><span className="text-gray-500">词性：</span>{expandedWord.partOfSpeech}</div>
+                      {expandedWord.root && (
+                        <div><span className="text-gray-500">词根：</span><span className="text-purple-600">{expandedWord.root}</span></div>
+                      )}
+                    </div>
                   </div>
                 )}
+
+                {/* 添加到 Anki */}
+                <AddToAnkiButton
+                  translation={translation}
+                  ankiService={ankiService}
+                  selectedWords={selectedWords}
+                />
               </div>
-            ))}
+            )}
+
+            {/* 操作按钮 */}
+            <div className="flex gap-2">
+              <button
+                onClick={clearTranslation}
+                className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+              >
+                🗑️ 清空
+              </button>
+              <button
+                onClick={() => setSelectedWords([])}
+                className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+              >
+                ↩️ 取消选择
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Language Info */}
-      {translationResult && (
-        <div className="mb-4 text-sm text-gray-500">
-          <p>
-            Translated from {translationResult.sourceLanguage} to {translationResult.targetLanguage}
-          </p>
-        </div>
-      )}
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">
-          <div className="flex justify-between items-center">
-            <span>{error}</span>
-            <button
-              onClick={clearError}
-              className="text-red-700 hover:text-red-900 font-medium"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
-
-      {isLoading && <LoadingSpinner />}
-
-      <div className="flex gap-3">
-        <button
-          onClick={handleTranslate}
-          disabled={isLoading}
-          className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Translate
-        </button>
-        <button
-          onClick={handleAddToAnki}
-          disabled={!translationResult || isLoading}
-          className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Add to Anki
-        </button>
-        <button
-          onClick={reset}
-          disabled={isLoading}
-          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Reset
-        </button>
-      </div>
-
-      <div className="mt-4 text-sm text-gray-500">
-        <p>Tip: Use Ctrl+Shift+T (Cmd+Shift+T on Mac) to quickly paste text from clipboard</p>
-        <p className="mt-1">
-          Note: AI translation requires API key configuration in settings (coming soon)
-        </p>
+        )}
       </div>
     </div>
   );

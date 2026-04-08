@@ -1,44 +1,35 @@
-export interface Translation {
-  originalText: string;
-  translatedText: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-}
-
-export interface AnkiCard {
-  front: string;
-  back: string;
-  tags: string[];
-}
-
-export interface ElectronAPI {
-  getClipboardText: () => Promise<string>;
-  onClipboardText: (callback: (text: string) => void) => void;
-}
-
 export interface TranslationResult {
+  original: string;
   translation: string;
-  grammarNotes?: string[];
-  wordAnalyses?: WordAnalysis[];
-  sourceLanguage: string;
-  targetLanguage: string;
+  isSentence: boolean;
+  words?: WordAnalysis[];
+  grammar?: string;
 }
 
 export interface WordAnalysis {
   word: string;
-  pronunciation?: string;
-  partOfSpeech?: string;
-  definition: string;
-  example?: string;
-  synonyms?: string[];
+  meaning: string;
+  partOfSpeech: string;
+  root?: string;
 }
 
 export interface AIConfig {
+  provider: 'deepseek' | 'openai' | 'custom';
+  baseURL: string;
   apiKey: string;
   model: string;
-  baseURL: string;
-  temperature: number;
-  maxTokens: number;
+}
+
+export interface AnkiConfig {
+  host: string;
+  defaultDeck: string;
+}
+
+export interface ElectronAPI {
+  getClipboardText: () => Promise<string>;
+  onTextSelected: (callback: (text: string) => void) => void;
+  hideWindow: () => Promise<void>;
+  quitApp: () => Promise<void>;
 }
 
 declare global {

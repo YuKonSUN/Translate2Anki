@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  getClipboardText: () => ipcRenderer.invoke('get-clipboard-text'),
-  onClipboardText: (callback: (text: string) => void) => {
-    ipcRenderer.on('clipboard-text', (_, text) => callback(text));
+  onTextSelected: (callback: (text: string) => void) => {
+    ipcRenderer.on('text-selected', (_, text) => callback(text));
   },
+  getClipboardText: () => ipcRenderer.invoke('get-clipboard-text'),
+  hideWindow: () => ipcRenderer.invoke('hide-window'),
+  quitApp: () => ipcRenderer.invoke('quit-app'),
 });

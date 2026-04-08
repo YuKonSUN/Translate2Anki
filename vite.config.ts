@@ -5,8 +5,10 @@ import { resolve } from 'path';
 export default defineConfig({
   plugins: [react()],
   base: './',
+  root: resolve(__dirname, 'src/renderer'),
   build: {
-    outDir: 'dist/renderer',
+    outDir: '../../dist/renderer',
+    emptyOutDir: true,
     rollupOptions: {
       input: resolve(__dirname, 'src/renderer/index.html'),
     },

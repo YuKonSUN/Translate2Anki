@@ -1,240 +1,100 @@
 import { create } from 'zustand';
+import { TranslationResult } from '@/types';
 import { AIService } from '@/services/aiService';
 import { CacheService } from '@/services/cacheService';
-import { AIConfig, TranslationResult, WordAnalysis } from '@/types';
 
-interface TranslationState {
-  // State
-  originalText: string;
-  translationResult: TranslationResult | null;
-  isLoading: boolean;
+interface TranslationStore {
+  selectedText: string;
+  translation: TranslationResult | null;
+  loading: boolean;
   error: string | null;
-  aiConfig: AIConfig;
-
-  // Services
+  cache: CacheService;
   aiService: AIService | null;
-  cacheService: CacheService | null;
 
-  // Actions
-  setOriginalText: (text: string) => void;
-  setAiConfig: (config: Partial<AIConfig>) => void;
-  initializeServices: () => void;
-  translate: (text?: string, sourceLanguage?: string, targetLanguage?: string) => Promise<void>;
-  analyzeWord: (word: string, language?: string) => Promise<WordAnalysis | null>;
-  analyzeSentence: (sentence: string, language?: string) => Promise<{
-    grammarNotes: string[];
-    wordAnalyses: WordAnalysis[];
-  } | null>;
-  clearError: () => void;
-  reset: () => void;
+  setSelectedText: (text: string) => void;
+  setAIService: (service: AIService) => void;
+  translateText: (text: string) => Promise<void>;
+  clearTranslation: () => void;
 }
 
-const defaultAiConfig: AIConfig = {
-  apiKey: '',
-  model: 'deepseek-chat',
-  baseURL: 'https://api.deepseek.com',
-  temperature: 0.7,
-  maxTokens: 1000,
-};
-
-export const useTranslationStore = create<TranslationState>((set, get) => ({
-  // Initial state
-  originalText: '',
-  translationResult: null,
-  isLoading: false,
+const useTranslationStore = create<TranslationStore>((set, get) => ({
+  selectedText: '',
+  translation: null,
+  loading: false,
   error: null,
-  aiConfig: defaultAiConfig,
+  cache: new CacheService(),
   aiService: null,
-  cacheService: null,
 
-  // Actions
-  setOriginalText: (text: string) => {
-    set({ originalText: text });
-  },
+  setSelectedText: (text) => set({ selectedText: text }),
 
-  setAiConfig: (config: Partial<AIConfig>) => {
-    const newConfig = { ...get().aiConfig, ...config };
-    set({ aiConfig: newConfig });
+  setAIService: (service) => set({ aiService: service }),
 
-    // Update AI service if it exists
-    const aiService = get().aiService;
-    if (aiService) {
-      aiService.updateConfig(newConfig);
-    }
-  },
-
-  initializeServices: () => {
-    const { aiConfig } = get();
-
-    const aiService = new AIService(aiConfig);
-    const cacheService = new CacheService();
-
-    set({ aiService, cacheService });
-  },
-
-  translate: async (text?: string, sourceLanguage: string = 'auto', targetLanguage: string = 'en') => {
-    const state = get();
-    const textToTranslate = text || state.originalText;
-
-    if (!textToTranslate.trim()) {
-      set({ error: 'Please enter text to translate' });
+  translateText: async (text) => {
+    const { aiService, cache } = get();
+    if (!aiService) {
+      set({ error: 'AI service not configured' });
       return;
     }
 
     // Check cache first
-    const cacheKey = CacheService.generateKey(
-      'translate',
-      textToTranslate,
-      sourceLanguage,
-      targetLanguage
-    );
-
-    if (state.cacheService?.has(cacheKey)) {
-      const cachedResult = state.cacheService.get<TranslationResult>(cacheKey);
-      if (cachedResult) {
-        set({ translationResult: cachedResult, error: null });
-        return;
-      }
+    const cached = cache.get<TranslationResult>(`translation:${text}`);
+    if (cached) {
+      set({ translation: cached, loading: false });
+      return;
     }
 
-    // Initialize services if needed
-    if (!state.aiService || !state.cacheService) {
-      get().initializeServices();
-    }
-
-    set({ isLoading: true, error: null });
+    set({ loading: true, error: null });
 
     try {
-      const aiService = get().aiService!;
-      const cacheService = get().cacheService!;
+      const isSentence = text.split(' ').length > 3 || /[.!?]/.test(text);
+      let translation: TranslationResult;
 
-      // Determine if text is a single word or sentence
-      const wordCount = textToTranslate.trim().split(/\s+/).length;
-      let result: TranslationResult;
-
-      if (wordCount === 1) {
-        // Single word - get translation and analysis
-        const [translation, wordAnalysis] = await Promise.all([
-          aiService.translate(textToTranslate, sourceLanguage, targetLanguage),
-          aiService.analyzeWord(textToTranslate, sourceLanguage === 'auto' ? targetLanguage : sourceLanguage),
-        ]);
-
-        result = {
-          ...translation,
-          wordAnalyses: [wordAnalysis],
+      if (isSentence) {
+        const analysis = await aiService.analyzeSentence(text);
+        translation = {
+          original: text,
+          translation: analysis.translation,
+          isSentence: true,
+          grammar: analysis.grammar,
+          words: analysis.words,
         };
       } else {
-        // Sentence - get translation and analysis
-        const [translation, sentenceAnalysis] = await Promise.all([
-          aiService.translate(textToTranslate, sourceLanguage, targetLanguage),
-          aiService.analyzeSentence(textToTranslate, sourceLanguage === 'auto' ? targetLanguage : sourceLanguage),
-        ]);
-
-        result = {
-          ...translation,
-          grammarNotes: sentenceAnalysis.grammarNotes,
-          wordAnalyses: sentenceAnalysis.wordAnalyses,
+        const analysis = await aiService.analyzeWord(text);
+        translation = {
+          original: text,
+          translation: analysis.translation,
+          isSentence: false,
+          words: [{
+            word: text,
+            meaning: analysis.translation,
+            partOfSpeech: analysis.partOfSpeech,
+            root: analysis.root,
+          }],
         };
       }
 
-      // Cache the result
-      cacheService.set(cacheKey, result, 3600000); // 1 hour TTL
+      // Cache for 24 hours
+      cache.set(`translation:${text}`, translation, 24 * 60);
 
-      set({
-        translationResult: result,
-        isLoading: false,
-        error: null,
-      });
+      set({ translation, loading: false });
     } catch (error) {
       console.error('Translation error:', error);
+      let errorMessage = 'Translation failed';
+      if (error instanceof Error) {
+        if (error.message.includes('Unexpected token')) {
+          errorMessage = 'API 返回格式错误，请重试';
+        } else {
+          errorMessage = error.message;
+        }
+      }
       set({
-        isLoading: false,
-        error: `Translation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: errorMessage,
+        loading: false
       });
     }
   },
 
-  analyzeWord: async (word: string, language: string = 'en') => {
-    const state = get();
-
-    // Check cache first
-    const cacheKey = CacheService.generateKey('analyzeWord', word, language);
-
-    if (state.cacheService?.has(cacheKey)) {
-      return state.cacheService.get<WordAnalysis>(cacheKey);
-    }
-
-    // Initialize services if needed
-    if (!state.aiService || !state.cacheService) {
-      get().initializeServices();
-    }
-
-    try {
-      const aiService = get().aiService!;
-      const cacheService = get().cacheService!;
-
-      const analysis = await aiService.analyzeWord(word, language);
-
-      // Cache the result
-      cacheService.set(cacheKey, analysis, 3600000); // 1 hour TTL
-
-      return analysis;
-    } catch (error) {
-      console.error('Word analysis error:', error);
-      set({
-        error: `Word analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
-      return null;
-    }
-  },
-
-  analyzeSentence: async (sentence: string, language: string = 'en') => {
-    const state = get();
-
-    // Check cache first
-    const cacheKey = CacheService.generateKey('analyzeSentence', sentence, language);
-
-    if (state.cacheService?.has(cacheKey)) {
-      return state.cacheService.get<{
-        grammarNotes: string[];
-        wordAnalyses: WordAnalysis[];
-      }>(cacheKey);
-    }
-
-    // Initialize services if needed
-    if (!state.aiService || !state.cacheService) {
-      get().initializeServices();
-    }
-
-    try {
-      const aiService = get().aiService!;
-      const cacheService = get().cacheService!;
-
-      const analysis = await aiService.analyzeSentence(sentence, language);
-
-      // Cache the result
-      cacheService.set(cacheKey, analysis, 3600000); // 1 hour TTL
-
-      return analysis;
-    } catch (error) {
-      console.error('Sentence analysis error:', error);
-      set({
-        error: `Sentence analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
-      return null;
-    }
-  },
-
-  clearError: () => {
-    set({ error: null });
-  },
-
-  reset: () => {
-    set({
-      originalText: '',
-      translationResult: null,
-      isLoading: false,
-      error: null,
-    });
-  },
+  clearTranslation: () => set({ translation: null, error: null }),
 }));
+
+export default useTranslationStore;

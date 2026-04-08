@@ -1,35 +1,15 @@
 import { CacheService } from '@/services/cacheService';
 
 describe('CacheService', () => {
-  let cacheService: CacheService;
-
-  beforeEach(() => {
-    cacheService = new CacheService();
+  it('stores and retrieves cache entries', () => {
+    const cache = new CacheService();
+    cache.set('key1', 'value1', 60); // 60 minutes
+    expect(cache.get('key1')).toBe('value1');
   });
 
-  describe('set and get', () => {
-    it('should store and retrieve values', () => {
-      // This test will fail initially because the module doesn't exist
-      // We're testing that our test setup works
-      expect(cacheService).toBeInstanceOf(CacheService);
-    });
-  });
-
-  describe('has', () => {
-    it('should check if key exists', () => {
-      expect(cacheService).toBeInstanceOf(CacheService);
-    });
-  });
-
-  describe('delete', () => {
-    it('should delete a key', () => {
-      expect(cacheService).toBeInstanceOf(CacheService);
-    });
-  });
-
-  describe('clear', () => {
-    it('should clear all cache', () => {
-      expect(cacheService).toBeInstanceOf(CacheService);
-    });
+  it('returns null for expired entries', () => {
+    const cache = new CacheService();
+    cache.set('key2', 'value2', 0); // Expired immediately
+    expect(cache.get('key2')).toBeNull();
   });
 });

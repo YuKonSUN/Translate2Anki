@@ -1,0 +1,33 @@
+appId: com.translate2anki.app
+productName: Translate2Anki
+copyright: Copyright © 2026
+directories:
+  output: dist-electron
+  buildResources: build
+files:
+  - dist/main/**
+  - dist/renderer/**
+  - dist/preload/**
+  - package.json
+extraMetadata:
+  main: dist/main/main.js
+mac:
+  category: public.app-category.education
+  target:
+    - dmg
+    - zip
+win:
+  target:
+    - nsis
+    - portable
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Education
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+publish:
+  provider: github
+  releaseType: release
