@@ -52,14 +52,70 @@ describe('AnkiService', () => {
       ok: true,
       json: () => Promise.resolve({ result: 12346, error: null }),
     });
-    
+
     const cardId = await service.createGrammarCard({
       sentence: 'Hello, world!',
       translation: '你好，世界！',
       grammar: 'Simple greeting sentence',
     });
-    
+
     expect(cardId).toBe(12346);
+  });
+
+  it('should create grammar card without audio when TTS fails', async () => {
+    const service = new AnkiService(mockConfig);
+
+    // Mock generateAndStoreAudio to throw error
+    const generateAndStoreAudioSpy = jest
+      .spyOn(service, 'generateAndStoreAudio')
+      .mockRejectedValue(new Error('TTS failed'));
+
+    // Mock AnkiConnect request for card creation
+    const mockRequest = jest.spyOn(service as any, 'request').mockResolvedValue(12346);
+
+    const grammarData = {
+      sentence: 'This is a test.',
+      translation: '这是一个测试。',
+      grammar: 'Simple sentence'
+    };
+
+    const cardId = await service.createGrammarCard(grammarData, true);
+
+    // 验证卡片仍然创建成功
+    expect(cardId).toBe(12346);
+
+    // 验证尝试了生成音频
+    expect(generateAndStoreAudioSpy).toHaveBeenCalledWith('This is a test.', 'en');
+
+    // 验证 AnkiConnect 被调用创建卡片
+    expect(mockRequest).toHaveBeenCalled();
+  });
+
+  it('should create grammar card without audio when generateAudio is false', async () => {
+    const service = new AnkiService(mockConfig);
+
+    // Mock generateAndStoreAudio - should NOT be called
+    const generateAndStoreAudioSpy = jest.spyOn(service, 'generateAndStoreAudio');
+
+    // Mock AnkiConnect request for card creation
+    const mockRequest = jest.spyOn(service as any, 'request').mockResolvedValue(12346);
+
+    const grammarData = {
+      sentence: 'This is a test.',
+      translation: '这是一个测试。',
+      grammar: 'Simple sentence'
+    };
+
+    const cardId = await service.createGrammarCard(grammarData, false);
+
+    // 验证卡片创建成功
+    expect(cardId).toBe(12346);
+
+    // 验证没有尝试生成音频
+    expect(generateAndStoreAudioSpy).not.toHaveBeenCalled();
+
+    // 验证 AnkiConnect 被调用创建卡片
+    expect(mockRequest).toHaveBeenCalled();
   });
 
   it('creates multiple word cards', async () => {
