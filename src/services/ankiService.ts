@@ -112,12 +112,12 @@ export class AnkiService {
       `<div style="background: #ffffff; padding: 20px; border-radius: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">`,
       
       // 含义 - 高对比度蓝色
-      `<div style="font-size: 24px; color: #2563eb; font-weight: bold; margin-bottom: 16px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">`,
+      `<div style="font-size: 24px; color: #3b82f6; font-weight: bold; margin-bottom: 16px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">`,
       `${data.meaning}`,
       `</div>`,
       
       // 词性 - 深灰色
-      `<div style="color: #4b5563; margin-bottom: 12px; font-size: 16px;">`,
+      `<div style="color: #6b7280; margin-bottom: 12px; font-size: 16px;">`,
       `<strong style="color: #1f2937;">词性：</strong>${data.partOfSpeech}`,
       `</div>`,
     ];
@@ -125,7 +125,7 @@ export class AnkiService {
     // 词根 - 紫色
     if (data.root) {
       backParts.push(
-        `<div style="color: #7c3aed; margin-bottom: 16px; font-size: 15px; line-height: 1.6;">`,
+        `<div style="color: #8b5cf6; margin-bottom: 16px; font-size: 15px; line-height: 1.6;">`,
         `<strong style="color: #1f2937;">词根：</strong>${data.root}`,
         `</div>`
       );
@@ -133,7 +133,7 @@ export class AnkiService {
     
     // 例句部分 - 带背景色
     backParts.push(
-      `<div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin-top: 16px; border-left: 4px solid #3b82f6;">`,
+      `<div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin-top: 16px; border-left: 4px solid #60a5fa;">`,
       `<div style="color: #1f2937; font-weight: bold; margin-bottom: 8px; font-size: 14px;">📖 例句</div>`,
       `<div style="color: #374151; font-style: italic; margin-bottom: 8px; line-height: 1.6; font-size: 15px;">`,
       `${data.example}`,
