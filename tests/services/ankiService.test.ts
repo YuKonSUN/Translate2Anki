@@ -20,11 +20,21 @@ describe('AnkiService', () => {
 
   it('creates word card', async () => {
     const service = new AnkiService(mockConfig);
+
+    // Mock the request method to handle both storeMediaFile and addNote
+    const mockRequest = jest.spyOn(service as any, 'request')
+      // First call: storeMediaFile for audio
+      .mockResolvedValueOnce(null)
+      // Second call: addNote for card creation
+      .mockResolvedValueOnce(12345);
+
+    // Mock fetch for TTS
+    const mockAudioData = new ArrayBuffer(100);
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ result: 12345, error: null }),
+      arrayBuffer: () => Promise.resolve(mockAudioData),
     });
-    
+
     const cardId = await service.createWordCard({
       word: 'Hello',
       meaning: '你好',
@@ -32,7 +42,7 @@ describe('AnkiService', () => {
       root: 'Old English',
       example: 'Hello, world!',
     });
-    
+
     expect(cardId).toBe(12345);
   });
 
@@ -54,21 +64,41 @@ describe('AnkiService', () => {
 
   it('creates multiple word cards', async () => {
     const service = new AnkiService(mockConfig);
+
+    // Mock the request method - it will be called multiple times
+    let requestCallCount = 0;
+    const mockRequest = jest.spyOn(service as any, 'request').mockImplementation(() => {
+      requestCallCount++;
+      // First two calls: storeMediaFile (return null)
+      if (requestCallCount <= 2) {
+        return Promise.resolve(null);
+      }
+      // Next two calls: addNote (return card IDs)
+      else if (requestCallCount === 3) {
+        return Promise.resolve(12345);
+      } else if (requestCallCount === 4) {
+        return Promise.resolve(12346);
+      }
+      return Promise.reject(new Error('Unexpected call'));
+    });
+
+    // Mock fetch for TTS (will be called twice, once for each word)
+    const mockAudioData = new ArrayBuffer(100);
     global.fetch = jest.fn()
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ result: 12345, error: null }),
+        arrayBuffer: () => Promise.resolve(mockAudioData),
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ result: 12346, error: null }),
+        arrayBuffer: () => Promise.resolve(mockAudioData),
       });
-    
+
     const cardIds = await service.createWordCards([
       { word: 'Hello', meaning: '你好', partOfSpeech: 'interjection', example: 'Hello!' },
       { word: 'world', meaning: '世界', partOfSpeech: 'noun', example: 'Hello world!' },
     ]);
-    
+
     expect(cardIds).toHaveLength(2);
     expect(cardIds).toEqual([12345, 12346]);
   });

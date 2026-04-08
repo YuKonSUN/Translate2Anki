@@ -96,12 +96,24 @@ export class AnkiService {
    * 正面：单词 + 语音播放按钮
    * 背面：含义 + 词性 + 词根 + 例句（中英对照）
    */
-  async createWordCard(data: WordCardData): Promise<number> {
+  async createWordCard(data: WordCardData, generateAudio: boolean = true): Promise<number> {
     // 正面：单词 + TTS 按钮（使用 Anki 的 [sound:...] 语法）
+    let frontAudioTag = '';
+    if (generateAudio) {
+      try {
+        const audioFilename = await this.generateAndStoreAudio(data.word, 'en');
+        frontAudioTag = `<div style="text-align: center; margin-top: 5px;">[sound:${audioFilename}]</div>`;
+      } catch (error) {
+        console.warn(`Failed to generate audio for word "${data.word}":`, error);
+        // 降级到纯文字提示
+      }
+    }
+
     const front = `
       <div style="font-size: 28px; font-weight: bold; text-align: center; padding: 30px; color: #1f2937; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
         ${data.word}
       </div>
+      ${frontAudioTag}
       <div style="text-align: center; margin-top: 10px;">
         <span style="font-size: 14px; color: #6b7280;">🔊 点击播放发音</span>
       </div>
@@ -195,10 +207,10 @@ export class AnkiService {
   /**
    * 批量创建单词卡片（每个单词一张卡片）
    */
-  async createWordCards(words: WordCardData[]): Promise<number[]> {
+  async createWordCards(words: WordCardData[], generateAudio: boolean = true): Promise<number[]> {
     const results = await Promise.all(
-      words.map(word => 
-        this.createWordCard(word).catch(err => {
+      words.map(word =>
+        this.createWordCard(word, generateAudio).catch(err => {
           console.error(`Failed to create card for ${word.word}: ${err.message}`);
           return null;
         })

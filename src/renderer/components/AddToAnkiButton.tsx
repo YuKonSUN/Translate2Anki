@@ -56,7 +56,7 @@ export const AddToAnkiButton: React.FC<AddToAnkiButtonProps> = ({
           })
           .filter((data): data is WordCardData => data !== null);
 
-        const wordCardIds = await ankiService.createWordCards(wordDataList);
+        const wordCardIds = await ankiService.createWordCards(wordDataList, true);
         createdCards.push(...wordCardIds);
       }
 
