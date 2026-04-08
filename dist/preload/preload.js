@@ -6,5 +6,8 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
         electron_1.ipcRenderer.on('text-selected', (_, text) => callback(text));
     },
     getClipboardText: () => electron_1.ipcRenderer.invoke('get-clipboard-text'),
-    // Add more IPC methods as needed
+    hideWindow: () => electron_1.ipcRenderer.invoke('hide-window'),
+    quitApp: () => electron_1.ipcRenderer.invoke('quit-app'),
+    getAppConfig: () => electron_1.ipcRenderer.invoke('get-app-config'),
+    saveAppConfig: (settings) => electron_1.ipcRenderer.invoke('save-app-config', settings),
 });

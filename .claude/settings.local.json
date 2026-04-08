@@ -25,7 +25,8 @@
       "Bash(PORT=5176 npm run dev)",
       "Bash(PORT=5180 NODE_ENV=development npx electron .)",
       "Bash(PORT=5181 npm run dev)",
-      "Bash(PORT=5181 NODE_ENV=development npx electron .)"
+      "Bash(PORT=5181 NODE_ENV=development npx electron .)",
+      "Bash(git show:*)"
     ]
   }
 }

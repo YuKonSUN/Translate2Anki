@@ -2,6 +2,7 @@ import * as electron from 'electron';
 import { join } from 'path';
 import { ShortcutManager } from './shortcutManager';
 import { ClipboardManager } from './clipboardManager';
+import { loadSettings, saveSettings, AppSettings } from './settingsService';
 
 const { app, BrowserWindow, ipcMain, Tray, Menu, screen } = electron;
 
@@ -137,12 +138,37 @@ async function getSelectedText(): Promise<string> {
   return selectedText;
 }
 
+// 带重试机制的获取选中文本
+async function getSelectedTextWithRetry(maxRetries: number = 3): Promise<string> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const text = await getSelectedText();
+      if (text && text.trim().length > 0) {
+        console.log(`Successfully got selected text (attempt ${attempt}/${maxRetries})`);
+        return text;
+      }
+
+      // 等待后重试（指数退避）
+      if (attempt < maxRetries) {
+        const delay = 50 * attempt; // 50ms, 100ms
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    } catch (error) {
+      console.warn(`Failed to get selected text (attempt ${attempt}/${maxRetries}):`, error);
+      if (attempt === maxRetries) {
+        throw error;
+      }
+    }
+  }
+  return '';
+}
+
 // 全局快捷键回调
 async function handleTranslationShortcut() {
   console.log('Translation shortcut pressed');
 
-  // 获取选中的文本
-  const selectedText = await getSelectedText();
+  // 获取选中的文本（带重试）
+  const selectedText = await getSelectedTextWithRetry();
   console.log('Selected text:', selectedText);
 
   if (!selectedText) {
@@ -173,6 +199,16 @@ ipcMain.handle('hide-window', () => {
 ipcMain.handle('quit-app', () => {
   appWithQuitting.isQuitting = true;
   app.quit();
+});
+
+// IPC: 返回应用配置（优先使用用户保存的设置，其次使用环境变量）
+ipcMain.handle('get-app-config', (): AppSettings => {
+  return loadSettings();
+});
+
+// IPC: 保存应用设置
+ipcMain.handle('save-app-config', (_event: any, settings: AppSettings): void => {
+  saveSettings(settings);
 });
 
 app.whenReady().then(() => {

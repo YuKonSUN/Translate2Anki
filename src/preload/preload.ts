@@ -7,4 +7,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getClipboardText: () => ipcRenderer.invoke('get-clipboard-text'),
   hideWindow: () => ipcRenderer.invoke('hide-window'),
   quitApp: () => ipcRenderer.invoke('quit-app'),
+  getAppConfig: () => ipcRenderer.invoke('get-app-config'),
+  saveAppConfig: (settings: any) => ipcRenderer.invoke('save-app-config', settings),
 });

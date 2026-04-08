@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { AddToAnkiButton } from './AddToAnkiButton';
+import SettingsPanel from './SettingsPanel';
 import useTranslationStore from '@/store/translationStore';
 import { AIService } from '@/services/aiService';
 import { AnkiService } from '@/services/ankiService';
@@ -11,7 +12,7 @@ const speakText = (text: string, lang: string = 'en-US') => {
   if ('speechSynthesis' in window) {
     // 取消之前的语音
     window.speechSynthesis.cancel();
-    
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang;
     utterance.rate = 0.9;
@@ -37,23 +38,48 @@ const TranslationPanel: React.FC = () => {
   const [apiTestResult, setApiTestResult] = useState<string | null>(null);
   const [testingApi, setTestingApi] = useState(false);
   const [expandedWord, setExpandedWord] = useState<WordAnalysis | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+
+  const reloadServices = () => {
+    if (window.electronAPI?.getAppConfig) {
+      window.electronAPI.getAppConfig().then((config) => {
+        const cfg: AIConfig = {
+          provider: config.ai.provider as AIConfig['provider'],
+          baseURL: config.ai.baseURL,
+          apiKey: config.ai.apiKey,
+          model: config.ai.model,
+        };
+        setAIService(new AIService(cfg, config.prompts));
+      }).catch((err) => {
+        console.error('Failed to load app config:', err);
+      });
+    }
+  };
 
   useEffect(() => {
-    // Initialize AI service
-    const aiConfig: AIConfig = {
-      provider: 'deepseek',
-      baseURL: 'https://api.deepseek.com',
-      apiKey: 'sk-36d7049130644918b872df6f454ad573',
-      model: 'deepseek-chat',
-    };
-    setAIService(new AIService(aiConfig));
-
     // Initialize Anki service
     const ankiConfig: AnkiConfig = {
       host: 'localhost:8765',
-      defaultDeck: 'Default',
+      defaultDeck: 'Translate2Anki',
     };
     setAnkiService(new AnkiService(ankiConfig));
+  }, []);
+
+  useEffect(() => {
+    // Load AI config from main process
+    if (window.electronAPI?.getAppConfig) {
+      window.electronAPI.getAppConfig().then((config) => {
+        const cfg: AIConfig = {
+          provider: config.ai.provider as AIConfig['provider'],
+          baseURL: config.ai.baseURL,
+          apiKey: config.ai.apiKey,
+          model: config.ai.model,
+        };
+        setAIService(new AIService(cfg, config.prompts));
+      }).catch((err) => {
+        console.error('Failed to load app config:', err);
+      });
+    }
   }, [setAIService]);
 
   useEffect(() => {
@@ -91,9 +117,13 @@ const TranslationPanel: React.FC = () => {
     setTestingApi(true);
     setApiTestResult(null);
     try {
-      const response = await fetch('https://api.deepseek.com/models', {
+      // Load config from main process for API test
+      const config = await window.electronAPI?.getAppConfig?.();
+      const baseURL = config?.ai.baseURL || 'https://api.deepseek.com';
+      const apiKey = config?.ai.apiKey;
+      const response = await fetch(`${baseURL}/models`, {
         headers: {
-          'Authorization': 'Bearer sk-36d7049130644918b872df6f454ad573',
+          'Authorization': `Bearer ${apiKey}`,
         },
       });
       if (response.ok) {
@@ -125,6 +155,7 @@ const TranslationPanel: React.FC = () => {
   };
 
   return (
+    <>
     <div className="bg-white rounded-lg shadow-2xl overflow-hidden" style={{ width: '480px', maxHeight: '80vh', overflowY: 'auto' }}>
       {/* 头部 */}
       <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-3 flex justify-between items-center">
@@ -133,6 +164,14 @@ const TranslationPanel: React.FC = () => {
           <span className="text-white font-semibold">Translate2Anki</span>
         </div>
         <div className="flex items-center gap-2">
+          {/* 设置按钮 */}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+            title="设置"
+          >
+            <span className="text-white">⚙️</span>
+          </button>
           {/* 播放原文按钮 */}
           {selectedText && selectedText !== '⚠️ 请复制要翻译的文本（跳过命令/代码）' && (
             <button
@@ -308,15 +347,15 @@ const TranslationPanel: React.FC = () => {
                     </div>
                   </div>
                 )}
-
-                {/* 添加到 Anki */}
-                <AddToAnkiButton
-                  translation={translation}
-                  ankiService={ankiService}
-                  selectedWords={selectedWords}
-                />
               </div>
             )}
+
+            {/* 添加到 Anki */}
+            <AddToAnkiButton
+              translation={translation}
+              ankiService={ankiService}
+              selectedWords={selectedWords}
+            />
 
             {/* 操作按钮 */}
             <div className="flex gap-2">
@@ -337,6 +376,15 @@ const TranslationPanel: React.FC = () => {
         )}
       </div>
     </div>
+
+    {/* 设置面板 */}
+    {showSettings && (
+      <SettingsPanel
+        onClose={() => setShowSettings(false)}
+        onSave={reloadServices}
+      />
+    )}
+    </>
   );
 };
 

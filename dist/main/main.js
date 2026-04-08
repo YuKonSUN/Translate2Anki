@@ -37,71 +37,190 @@ const electron = __importStar(require("electron"));
 const path_1 = require("path");
 const shortcutManager_1 = require("./shortcutManager");
 const clipboardManager_1 = require("./clipboardManager");
-const { app, BrowserWindow, ipcMain } = electron;
-console.log('Electron module keys:', Object.keys(electron));
-console.log('app:', app);
-console.log('BrowserWindow:', BrowserWindow);
-console.log('ipcMain:', ipcMain);
+const settingsService_1 = require("./settingsService");
+const { app, BrowserWindow, ipcMain, Tray, Menu, screen } = electron;
+const appWithQuitting = app;
 let mainWindow = null;
+let tray = null;
 const shortcutManager = new shortcutManager_1.ShortcutManager();
 const clipboardManager = new clipboardManager_1.ClipboardManager();
+// 判断是否在开发环境
+const isDev = process.env.NODE_ENV === 'development';
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: 400, // 原500
+        height: 500, // 原700
+        show: false, // 初始不显示
+        frame: false, // 无边框
+        resizable: true, // 改为可调整大小，方便用户调整
+        skipTaskbar: true, // 不在任务栏显示
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
             preload: (0, path_1.join)(__dirname, '../preload/preload.js'),
         },
     });
-    if (process.env.NODE_ENV === 'development') {
+    // 设置最小尺寸
+    mainWindow.setMinimumSize(350, 400);
+    if (isDev) {
         const port = process.env.PORT || '5173';
         mainWindow.loadURL(`http://localhost:${port}`);
-        mainWindow.webContents.openDevTools();
     }
     else {
         mainWindow.loadFile((0, path_1.join)(__dirname, '../renderer/index.html'));
+    }
+    // 窗口失去焦点时隐藏
+    mainWindow.on('blur', () => {
+        mainWindow?.hide();
+    });
+    // 窗口关闭时只是隐藏，不退出
+    mainWindow.on('close', (event) => {
+        if (!appWithQuitting.isQuitting) {
+            event.preventDefault();
+            mainWindow?.hide();
+        }
+    });
+}
+function createTray() {
+    // 使用简单的 emoji 作为托盘图标（生产环境应该用真实图标文件）
+    tray = new Tray((0, path_1.join)(__dirname, '../../assets/tray-icon.png'));
+    const contextMenu = Menu.buildFromTemplate([
+        {
+            label: '显示 Translate2Anki',
+            click: () => {
+                mainWindow?.show();
+            },
+        },
+        { type: 'separator' },
+        {
+            label: '退出',
+            click: () => {
+                appWithQuitting.isQuitting = true;
+                app.quit();
+            },
+        },
+    ]);
+    tray.setToolTip('Translate2Anki');
+    tray.setContextMenu(contextMenu);
+    // 点击托盘图标显示窗口
+    tray.on('click', () => {
+        mainWindow?.show();
+    });
+}
+// 在鼠标位置显示窗口
+function showWindowAtCursor() {
+    if (!mainWindow)
+        return;
+    const cursorPosition = screen.getCursorScreenPoint();
+    const display = screen.getDisplayNearestPoint(cursorPosition);
+    // 计算窗口位置（鼠标右下方）
+    let x = cursorPosition.x + 10;
+    let y = cursorPosition.y + 10;
+    // 确保窗口不超出屏幕
+    const windowBounds = mainWindow.getBounds();
+    const displayBounds = display.workArea;
+    if (x + windowBounds.width > displayBounds.x + displayBounds.width) {
+        x = cursorPosition.x - windowBounds.width - 10;
+    }
+    if (y + windowBounds.height > displayBounds.y + displayBounds.height) {
+        y = cursorPosition.y - windowBounds.height - 10;
+    }
+    mainWindow.setPosition(Math.max(0, x), Math.max(0, y));
+    mainWindow.show();
+    mainWindow.focus();
+}
+// 获取选中的文本（使用剪贴板技巧）
+async function getSelectedText() {
+    // 保存当前剪贴板内容
+    const originalText = clipboardManager.readText();
+    // 模拟复制操作（发送 Ctrl+C）
+    // 注意：这需要系统权限，在某些应用可能不起作用
+    // 更好的方法是使用 native 模块或 robotjs
+    // 等待一小段时间让复制完成
+    await new Promise(resolve => setTimeout(resolve, 100));
+    // 读取新的剪贴板内容
+    const selectedText = clipboardManager.readValidText();
+    // 恢复原始剪贴板内容
+    clipboardManager.writeText(originalText);
+    return selectedText;
+}
+// 带重试机制的获取选中文本
+async function getSelectedTextWithRetry(maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const text = await getSelectedText();
+            if (text && text.trim().length > 0) {
+                console.log(`Successfully got selected text (attempt ${attempt}/${maxRetries})`);
+                return text;
+            }
+            // 等待后重试（指数退避）
+            if (attempt < maxRetries) {
+                const delay = 50 * attempt; // 50ms, 100ms
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+        catch (error) {
+            console.warn(`Failed to get selected text (attempt ${attempt}/${maxRetries}):`, error);
+            if (attempt === maxRetries) {
+                throw error;
+            }
+        }
+    }
+    return '';
+}
+// 全局快捷键回调
+async function handleTranslationShortcut() {
+    console.log('Translation shortcut pressed');
+    // 获取选中的文本（带重试）
+    const selectedText = await getSelectedTextWithRetry();
+    console.log('Selected text:', selectedText);
+    if (!selectedText) {
+        console.log('No valid text selected');
+        return;
+    }
+    // 在鼠标位置显示窗口
+    showWindowAtCursor();
+    // 发送文本到渲染进程
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('text-selected', selectedText);
     }
 }
 // IPC handler for clipboard text requests
 ipcMain.handle('get-clipboard-text', async () => {
     return clipboardManager.readText();
 });
-// Global shortcut callback
-function handleTranslationShortcut() {
-    console.log('Translation shortcut pressed');
-    // Read and validate text from clipboard
-    const clipboardText = clipboardManager.readValidText();
-    console.log('Clipboard text:', clipboardText);
-    // Only send if there's valid text
-    if (!clipboardText) {
-        console.log('No valid text in clipboard, skipping...');
-        // Show notification to user
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('text-selected', '');
-        }
-        return;
-    }
-    // Send clipboard text to renderer if window exists
-    if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('text-selected', clipboardText);
-    }
-}
+// IPC: 关闭窗口（隐藏到托盘）
+ipcMain.handle('hide-window', () => {
+    mainWindow?.hide();
+});
+// IPC: 退出应用
+ipcMain.handle('quit-app', () => {
+    appWithQuitting.isQuitting = true;
+    app.quit();
+});
+// IPC: 返回应用配置（优先使用用户保存的设置，其次使用环境变量）
+ipcMain.handle('get-app-config', () => {
+    return (0, settingsService_1.loadSettings)();
+});
+// IPC: 保存应用设置
+ipcMain.handle('save-app-config', (_event, settings) => {
+    (0, settingsService_1.saveSettings)(settings);
+});
 app.whenReady().then(() => {
     createWindow();
+    createTray();
     app.on('activate', () => {
+        // macOS: 点击 dock 图标时重新创建窗口
         if (BrowserWindow.getAllWindows().length === 0) {
             createWindow();
         }
     });
 });
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+    // 所有平台：保持后台运行
+    // 不调用 app.quit()，让应用继续在托盘运行
 });
-// Register global shortcut for translation
+// 注册全局快捷键
 app.on('ready', () => {
     const ret = shortcutManager.register('CommandOrControl+Shift+T', handleTranslationShortcut);
     if (!ret) {
@@ -111,7 +230,23 @@ app.on('ready', () => {
         console.log('Translation shortcut registered: Ctrl+Shift+T (Cmd+Shift+T on Mac)');
     }
 });
-// Clean up shortcuts on quit
+// 清理快捷键
 app.on('will-quit', () => {
     shortcutManager.unregisterAll();
 });
+// 防止多次启动实例
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+}
+else {
+    app.on('second-instance', () => {
+        // 有人试图启动第二个实例，显示已有窗口
+        if (mainWindow) {
+            if (mainWindow.isMinimized())
+                mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}

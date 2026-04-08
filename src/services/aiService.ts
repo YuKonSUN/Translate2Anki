@@ -1,11 +1,23 @@
 import axios from 'axios';
-import { AIConfig } from '@/types';
+import { AIConfig, PromptConfig } from '@/types';
+
+const defaultPrompts: PromptConfig = {
+  translate: 'You are a translation assistant. Translate the given text to Chinese if it is English, or to English if it is Chinese. Return only the translation without any additional text.',
+  analyzeWord: 'Analyze the given English word. Provide: 1. Chinese translation, 2. Part of speech, 3. Word root/etymology if known, 4. Example sentence. Return as JSON: {translation: string, partOfSpeech: string, root: string, example: string}',
+  analyzeSentence: 'Analyze the given English sentence. Provide: 1. Chinese translation, 2. Grammar analysis (break down structure), 3. Key vocabulary words with meanings, part of speech, and etymology. Return as JSON: {translation: string, grammar: string, words: Array<{word: string, meaning: string, partOfSpeech: string, root: string}>}',
+};
 
 export class AIService {
   private config: AIConfig;
+  private prompts: PromptConfig;
 
-  constructor(config: AIConfig) {
+  constructor(config: AIConfig, prompts?: Partial<PromptConfig>) {
     this.config = config;
+    this.prompts = {
+      translate: prompts?.translate ?? defaultPrompts.translate,
+      analyzeWord: prompts?.analyzeWord ?? defaultPrompts.analyzeWord,
+      analyzeSentence: prompts?.analyzeSentence ?? defaultPrompts.analyzeSentence,
+    };
   }
 
   async translate(text: string): Promise<string> {
@@ -16,12 +28,12 @@ export class AIService {
         messages: [
           {
             role: 'system',
-            content: 'You are a translation assistant. Translate the given text to Chinese if it is English, or to English if it is Chinese. Return only the translation without any additional text.'
+            content: this.prompts.translate,
           },
           {
             role: 'user',
-            content: text
-          }
+            content: text,
+          },
         ],
         max_tokens: 1000,
         temperature: 0.3,
@@ -45,12 +57,12 @@ export class AIService {
         messages: [
           {
             role: 'system',
-            content: 'Analyze the given English word. Provide: 1. Chinese translation, 2. Part of speech, 3. Word root/etymology if known, 4. Example sentence. Return as JSON: {translation: string, partOfSpeech: string, root: string, example: string}'
+            content: this.prompts.analyzeWord,
           },
           {
             role: 'user',
-            content: word
-          }
+            content: word,
+          },
         ],
         max_tokens: 1000,
         temperature: 0.3,
@@ -88,12 +100,12 @@ export class AIService {
         messages: [
           {
             role: 'system',
-            content: 'Analyze the given English sentence. Provide: 1. Chinese translation, 2. Grammar analysis (break down structure), 3. Key vocabulary words with meanings, part of speech, and etymology. Return as JSON: {translation: string, grammar: string, words: Array<{word: string, meaning: string, partOfSpeech: string, root: string}>}'
+            content: this.prompts.analyzeSentence,
           },
           {
             role: 'user',
-            content: sentence
-          }
+            content: sentence,
+          },
         ],
         max_tokens: 1500,
         temperature: 0.3,
