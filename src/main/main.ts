@@ -22,11 +22,11 @@ const isDev = process.env.NODE_ENV === 'development';
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 500,
-    height: 700,
+    width: 400,  // 原500
+    height: 500, // 原700
     show: false, // 初始不显示
     frame: false, // 无边框
-    resizable: false,
+    resizable: true, // 改为可调整大小，方便用户调整
     skipTaskbar: true, // 不在任务栏显示
     webPreferences: {
       nodeIntegration: false,
@@ -34,6 +34,9 @@ function createWindow() {
       preload: join(__dirname, '../preload/preload.js'),
     },
   });
+
+  // 设置最小尺寸
+  mainWindow.setMinimumSize(350, 400);
 
   if (isDev) {
     const port = process.env.PORT || '5173';
