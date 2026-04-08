@@ -8,9 +8,20 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
+## 效果展示
+### 触发界面
+![show01](./assets/show_demo01.png)
+
+![show02](./assets/show_demo02.png)
+
+### Anki界面
+![show03](./assets/show_demo03.png)
+
+![show04](./assets/show_demo04.png)
+
 ## 功能特性
 
-- **划词翻译** — 选中英文文本，按 `Ctrl+Shift+T`（macOS: `Cmd+Shift+T`）即可弹出翻译窗口
+- **划词翻译** — 选中英文文本复制（`Ctrl+C`），按 `Ctrl+Shift+T`（macOS: `Cmd+Shift+T`）即可弹出翻译窗口
 - **AI 智能分析** — 自动识别单词/长句，分别提供单词详情（释义、词性、词根、例句）或句子语法分析
 - **一键生成 Anki 卡片** — 勾选需要学习的单词，一键生成带 TTS 语音的 Anki 单词卡和语法分析卡片
 - **TTS 语音** — 窗口内实时朗读原文/翻译，Anki 卡片正面内置发音按钮
