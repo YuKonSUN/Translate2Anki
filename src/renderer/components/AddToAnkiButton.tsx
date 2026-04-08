@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AnkiService, WordCardData, GrammarCardData } from '@/services/ankiService';
-import { TranslationResult, WordAnalysis } from '@/types';
+import { TranslationResult } from '@/types';
 
 interface AddToAnkiButtonProps {
   translation: TranslationResult;
@@ -35,7 +35,7 @@ export const AddToAnkiButton: React.FC<AddToAnkiButtonProps> = ({
 
     try {
       // 确保卡组存在
-      await ankiService.ensureTranslate2AnkiDeck();
+      await ankiService.ensureDefaultDeck();
 
       const createdCards: number[] = [];
 
@@ -45,14 +45,16 @@ export const AddToAnkiButton: React.FC<AddToAnkiButtonProps> = ({
           .map(wordStr => {
             const wordInfo = translation.words?.find(w => w.word === wordStr);
             if (!wordInfo) return null;
-            return {
+            // 显式类型转换确保类型匹配
+            const cardData: WordCardData = {
               word: wordInfo.word,
               meaning: wordInfo.meaning,
               partOfSpeech: wordInfo.partOfSpeech,
               root: wordInfo.root,
-              example: translation.original, // 原文句子作为例句
-              exampleTranslation: translation.translation, // 句子翻译作为例句翻译
+              example: translation.original,
+              exampleTranslation: translation.translation,
             };
+            return cardData;
           })
           .filter((data): data is WordCardData => data !== null);
 
@@ -67,7 +69,7 @@ export const AddToAnkiButton: React.FC<AddToAnkiButtonProps> = ({
           translation: translation.translation,
           grammar: translation.grammar,
         };
-        const grammarCardId = await ankiService.createGrammarCard(grammarData);
+        const grammarCardId = await ankiService.createGrammarCard(grammarData, true);
         createdCards.push(grammarCardId);
       }
 

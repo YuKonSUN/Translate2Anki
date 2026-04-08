@@ -1,5 +1,3 @@
-import { WordAnalysis } from '@/types';
-
 export interface AnkiCard {
   deckName: string;
   front: string;
@@ -160,7 +158,7 @@ export class AnkiService {
     const back = backParts.join('');
 
     return this.createCard({
-      deckName: 'Translate2Anki',
+      deckName: this.config.defaultDeck,
       front,
       back,
       tags: ['translate2anki', 'vocabulary'],
@@ -172,11 +170,24 @@ export class AnkiService {
    * 正面：英文句子 + 语音按钮
    * 背面：句子意思 + 结构分析
    */
-  async createGrammarCard(data: GrammarCardData): Promise<number> {
+  async createGrammarCard(data: GrammarCardData, generateAudio: boolean = true): Promise<number> {
+    // 正面：句子 + TTS 按钮（使用 Anki 的 [sound:...] 语法）
+    let frontAudioTag = '';
+    if (generateAudio) {
+      try {
+        const audioFilename = await this.generateAndStoreAudio(data.sentence, 'en');
+        frontAudioTag = `<div style="text-align: center; margin-top: 5px;">[sound:${audioFilename}]</div>`;
+      } catch (error) {
+        console.warn(`Failed to generate audio for sentence "${data.sentence}":`, error);
+        // 降级到纯文字提示
+      }
+    }
+
     const front = `
       <div style="font-size: 20px; padding: 25px; line-height: 1.8; color: #1f2937; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 600;">
         ${data.sentence}
       </div>
+      ${frontAudioTag}
       <div style="text-align: center; margin-top: 10px;">
         <span style="font-size: 14px; color: #6b7280;">🔊 点击播放发音</span>
       </div>
@@ -197,7 +208,7 @@ export class AnkiService {
     `;
 
     return this.createCard({
-      deckName: 'Translate2Anki',
+      deckName: this.config.defaultDeck,
       front,
       back,
       tags: ['translate2anki', 'grammar'],
@@ -229,12 +240,12 @@ export class AnkiService {
   }
 
   /**
-   * 确保 Translate2Anki 卡组存在
+   * 确保默认卡组存在
    */
-  async ensureTranslate2AnkiDeck(): Promise<void> {
-    const exists = await this.deckExists('Translate2Anki');
+  async ensureDefaultDeck(): Promise<void> {
+    const exists = await this.deckExists(this.config.defaultDeck);
     if (!exists) {
-      await this.createDeck('Translate2Anki');
+      await this.createDeck(this.config.defaultDeck);
     }
   }
 

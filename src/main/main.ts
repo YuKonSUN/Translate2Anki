@@ -5,6 +5,13 @@ import { ClipboardManager } from './clipboardManager';
 
 const { app, BrowserWindow, ipcMain, Tray, Menu, screen } = electron;
 
+// Type assertion for custom property
+interface AppWithQuitting extends electron.App {
+  isQuitting?: boolean;
+}
+
+const appWithQuitting = app as AppWithQuitting;
+
 let mainWindow: electron.BrowserWindow | null = null;
 let tray: electron.Tray | null = null;
 const shortcutManager = new ShortcutManager();
@@ -42,7 +49,7 @@ function createWindow() {
 
   // 窗口关闭时只是隐藏，不退出
   mainWindow.on('close', (event) => {
-    if (!app.isQuiting) {
+    if (!appWithQuitting.isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
     }
@@ -64,7 +71,7 @@ function createTray() {
     {
       label: '退出',
       click: () => {
-        app.isQuiting = true;
+        appWithQuitting.isQuitting = true;
         app.quit();
       },
     },
@@ -161,7 +168,7 @@ ipcMain.handle('hide-window', () => {
 
 // IPC: 退出应用
 ipcMain.handle('quit-app', () => {
-  app.isQuiting = true;
+  appWithQuitting.isQuitting = true;
   app.quit();
 });
 

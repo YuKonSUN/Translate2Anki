@@ -110,7 +110,7 @@ describe('AnkiService', () => {
       json: () => Promise.resolve({ result: ['Default'], error: null }),
     });
 
-    await service.ensureTranslate2AnkiDeck();
+    await service.ensureDefaultDeck();
     expect(global.fetch).toHaveBeenCalled();
   });
 });
