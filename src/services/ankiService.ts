@@ -243,7 +243,7 @@ export class AnkiService {
    * 从 Google TTS 获取音频数据
    */
   private async fetchTTS(text: string, lang: string = 'en'): Promise<ArrayBuffer> {
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(text)}&tl=${lang}`;
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(text)}&tl=${encodeURIComponent(lang)}`;
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -254,19 +254,44 @@ export class AnkiService {
   }
 
   /**
+   * 将 ArrayBuffer 转换为 base64 字符串（浏览器兼容）
+   */
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  /**
    * 生成并存储音频文件到 Anki 媒体库
    * 返回音频文件名
    */
   async generateAndStoreAudio(text: string, lang: string = 'en'): Promise<string> {
     try {
+      // 输入验证
+      if (!text || text.trim().length === 0) {
+        throw new Error('Text cannot be empty');
+      }
+
+      if (text.length > 200) {
+        throw new Error(`Text too long (${text.length} characters, max 200)`);
+      }
+
+      if (!/^[a-zA-Z-]+$/.test(lang)) {
+        throw new Error(`Invalid language code: ${lang}`);
+      }
+
       // 生成唯一文件名
       const filename = `tts_${this.textHash(text)}.mp3`;
 
       // 获取音频数据
       const audioData = await this.fetchTTS(text, lang);
 
-      // 转换为 base64
-      const base64Data = Buffer.from(audioData).toString('base64');
+      // 转换为 base64（使用浏览器兼容的方法）
+      const base64Data = this.arrayBufferToBase64(audioData);
 
       // 存储到 Anki 媒体文件夹
       await this.request('storeMediaFile', {

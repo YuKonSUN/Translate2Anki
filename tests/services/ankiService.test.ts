@@ -155,4 +155,66 @@ describe('TTS functionality', () => {
     await expect(service.generateAndStoreAudio('test word', 'en'))
       .rejects.toThrow('Network error');
   });
+
+  it('should reject empty text', async () => {
+    await expect(service.generateAndStoreAudio('', 'en'))
+      .rejects.toThrow('Text cannot be empty');
+
+    await expect(service.generateAndStoreAudio('   ', 'en'))
+      .rejects.toThrow('Text cannot be empty');
+  });
+
+  it('should reject text that is too long', async () => {
+    const longText = 'a'.repeat(201);
+    await expect(service.generateAndStoreAudio(longText, 'en'))
+      .rejects.toThrow('Text too long (201 characters, max 200)');
+  });
+
+  it('should accept text at maximum length', async () => {
+    const maxLengthText = 'a'.repeat(200);
+    // Mock successful response
+    const mockAudioData = new ArrayBuffer(100);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(mockAudioData),
+    });
+    const mockRequest = jest.spyOn(service as any, 'request').mockResolvedValue(null);
+
+    await expect(service.generateAndStoreAudio(maxLengthText, 'en')).resolves.toBeDefined();
+  });
+
+  it('should reject invalid language codes', async () => {
+    await expect(service.generateAndStoreAudio('test', 'en123'))
+      .rejects.toThrow('Invalid language code: en123');
+
+    await expect(service.generateAndStoreAudio('test', 'en_US'))
+      .rejects.toThrow('Invalid language code: en_US');
+
+    // 测试有效的语言代码（带连字符）
+    const mockAudioData = new ArrayBuffer(100);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(mockAudioData),
+    });
+    const mockRequest = jest.spyOn(service as any, 'request').mockResolvedValue(null);
+
+    await expect(service.generateAndStoreAudio('test', 'en-us')).resolves.toBeDefined(); // 连字符应该被允许
+    await expect(service.generateAndStoreAudio('test', 'zh-CN')).resolves.toBeDefined(); // 连字符应该被允许
+  });
+
+  it('should encode language parameter in URL', async () => {
+    const mockAudioData = new ArrayBuffer(100);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(mockAudioData),
+    });
+    const mockRequest = jest.spyOn(service as any, 'request').mockResolvedValue(null);
+
+    await service.generateAndStoreAudio('test', 'zh-CN');
+
+    // 验证 URL 包含编码的语言参数
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('tl=zh-CN')
+    );
+  });
 });
