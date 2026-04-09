@@ -35,10 +35,11 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron = __importStar(require("electron"));
 const path_1 = require("path");
+const fs_1 = require("fs");
 const shortcutManager_1 = require("./shortcutManager");
 const clipboardManager_1 = require("./clipboardManager");
 const settingsService_1 = require("./settingsService");
-const { app, BrowserWindow, ipcMain, Tray, Menu, screen } = electron;
+const { app, BrowserWindow, ipcMain, Tray, Menu, screen, nativeImage } = electron;
 const appWithQuitting = app;
 let mainWindow = null;
 let tray = null;
@@ -82,8 +83,25 @@ function createWindow() {
     });
 }
 function createTray() {
-    // 使用简单的 emoji 作为托盘图标（生产环境应该用真实图标文件）
-    tray = new Tray((0, path_1.join)(__dirname, '../../assets/tray-icon.png'));
+    const iconPath = (0, path_1.join)(__dirname, '../../assets/tray-icon.png');
+    let trayIcon;
+    if ((0, fs_1.existsSync)(iconPath)) {
+        trayIcon = nativeImage.createFromPath(iconPath);
+    }
+    else {
+        console.warn('Tray icon not found, using fallback');
+        // Fallback: generate a simple 32x32 teal square
+        const size = 32;
+        const buf = Buffer.alloc(size * size * 4);
+        for (let i = 0; i < size * size; i++) {
+            buf[i * 4] = 0; // R
+            buf[i * 4 + 1] = 180; // G
+            buf[i * 4 + 2] = 160; // B
+            buf[i * 4 + 3] = 255; // A (opaque)
+        }
+        trayIcon = nativeImage.createFromBuffer(Buffer.from(buf), { width: size, height: size });
+    }
+    tray = new Tray(trayIcon);
     const contextMenu = Menu.buildFromTemplate([
         {
             label: '显示 Translate2Anki',
@@ -250,3 +268,4 @@ else {
         }
     });
 }
+//# sourceMappingURL=main.js.map

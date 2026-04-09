@@ -1,0 +1,37 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Build with Vite"
+    },
+    {
+      "label": "dev",
+      "type": "npm",
+      "script": "dev",
+      "group": { "kind": "build", "isDefault": false },
+      "problemMatcher": [],
+      "detail": "Start Vite dev server"
+    },
+    {
+      "label": "start",
+      "type": "npm",
+      "script": "start",
+      "group": { "kind": "test", "isDefault": false },
+      "problemMatcher": [],
+      "detail": "Start Electron app"
+    },
+    {
+      "label": "test",
+      "type": "npm",
+      "script": "test",
+      "group": "test",
+      "problemMatcher": [],
+      "detail": "Run Jest tests"
+    }
+  ]
+}

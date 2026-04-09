@@ -1,10 +1,11 @@
 import * as electron from 'electron';
 import { join } from 'path';
+import { existsSync } from 'fs';
 import { ShortcutManager } from './shortcutManager';
 import { ClipboardManager } from './clipboardManager';
 import { loadSettings, saveSettings, AppSettings } from './settingsService';
 
-const { app, BrowserWindow, ipcMain, Tray, Menu, screen } = electron;
+const { app, BrowserWindow, ipcMain, Tray, Menu, screen, nativeImage } = electron;
 
 // Type assertion for custom property
 interface AppWithQuitting extends electron.App {
@@ -61,8 +62,26 @@ function createWindow() {
 }
 
 function createTray() {
-  // 使用简单的 emoji 作为托盘图标（生产环境应该用真实图标文件）
-  tray = new Tray(join(__dirname, '../../assets/tray-icon.png'));
+  const iconPath = join(__dirname, '../../assets/tray-icon.png');
+  let trayIcon: Electron.NativeImage;
+
+  if (existsSync(iconPath)) {
+    trayIcon = nativeImage.createFromPath(iconPath);
+  } else {
+    console.warn('Tray icon not found, using fallback');
+    // Fallback: generate a simple 32x32 teal square
+    const size = 32;
+    const buf = Buffer.alloc(size * size * 4);
+    for (let i = 0; i < size * size; i++) {
+      buf[i * 4] = 0;       // R
+      buf[i * 4 + 1] = 180; // G
+      buf[i * 4 + 2] = 160; // B
+      buf[i * 4 + 3] = 255; // A (opaque)
+    }
+    trayIcon = nativeImage.createFromBuffer(Buffer.from(buf), { width: size, height: size });
+  }
+
+  tray = new Tray(trayIcon);
   
   const contextMenu = Menu.buildFromTemplate([
     {

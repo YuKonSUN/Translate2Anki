@@ -64,3 +64,4 @@ class ClipboardManager {
     }
 }
 exports.ClipboardManager = ClipboardManager;
+//# sourceMappingURL=clipboardManager.js.map

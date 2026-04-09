@@ -11,3 +11,4 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     getAppConfig: () => electron_1.ipcRenderer.invoke('get-app-config'),
     saveAppConfig: (settings) => electron_1.ipcRenderer.invoke('save-app-config', settings),
 });
+//# sourceMappingURL=preload.js.map

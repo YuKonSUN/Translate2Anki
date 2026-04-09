@@ -50,3 +50,4 @@ class ShortcutManager {
     }
 }
 exports.ShortcutManager = ShortcutManager;
+//# sourceMappingURL=shortcutManager.js.map
